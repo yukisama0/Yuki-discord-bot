@@ -16,7 +16,6 @@ Thumbs.db
 /__pycache__/
 .venv/
 /env/
-models/
 *.pyc
 *.pyo
 *.pyd
