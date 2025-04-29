@@ -8,7 +8,7 @@ require('dotenv').config();
 
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 let TWITCH_ACCESS_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
-let wasLive = {};  // Track live status per Twitch username
+let wasLive = {};
 
 async function refreshTwitchToken() {
     try {
@@ -98,24 +98,35 @@ module.exports = {
             try {
                 for (const guild of client.guilds.cache.values()) {
                     const guildData = await Guild.findOne({ where: { id: guild.id } });
-                    const twitchUsername = guildData ? guildData.twitchUsername : null;
-                    if (!twitchUsername) {
+                    
+                    if (!guildData) {
+                        if (!skippedGuilds.has(guild.id)) {
+                            console.log(chalk.yellow(`No data found for guild ${guild.name}, skipping...`));
+                            skippedGuilds.add(guild.id);
+                        }
+                        continue;
+                    }
+        
+                    const twitchUsername = guildData.streamerName;
+                    
+                    if (!twitchUsername || twitchUsername === '') {
                         if (!skippedGuilds.has(guild.id)) {
                             console.log(chalk.yellow(`No Twitch username set for guild ${guild.name}, skipping...`));
                             skippedGuilds.add(guild.id);
                         }
                         continue;
                     }
+        
                     skippedGuilds.delete(guild.id);
-
+        
                     const twitchChannelId = guildData?.twitchChannelId;
                     const pingRoleId = guildData?.twitchRoleId;
                     const embedColor = guildData?.twitchEmbedColor || '#6400ff';
                     const lastNotificationTime = guildData?.twitchLastNotification;
-
-                    const currentTimeBerlin = moment().tz('Europe/Berlin');  // Berlin timezone
-                    const cooldownTime = 2 * 60 * 60 * 1000;  // 2 hours cooldown
-
+        
+                    const currentTimeBerlin = moment().tz('Europe/Berlin');
+                    const cooldownTime = 2 * 60 * 60 * 1000;
+        
                     try {
                         const url = `https://api.twitch.tv/helix/streams?user_login=${twitchUsername}`;
                         const response = await axios.get(url, {
@@ -125,11 +136,11 @@ module.exports = {
                             }
                         });
                         const stream = response.data.data[0];
-
+        
                         if (stream) {
                             if (!lastNotificationTime || currentTimeBerlin.diff(moment(lastNotificationTime)) >= cooldownTime) {
                                 await guildData.update({ twitchLastNotification: currentTimeBerlin.toDate() });
-
+        
                                 const twitchTitle = stream.title || "N/A";
                                 const twitchCategory = stream.game_name || "N/A";
                                 const userUrl = `https://api.twitch.tv/helix/users?login=${twitchUsername}`;
@@ -184,7 +195,7 @@ module.exports = {
             } catch (error) {
                 console.error(chalk.red('Error checking Twitch API:', error));
             }
-        }
+        }        
 
         setInterval(checkTwitchLive, 1000 * 60);  // Check every minute
         console.log(chalk.bold.green(`Twitch check is running!`));
